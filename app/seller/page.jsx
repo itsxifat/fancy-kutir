@@ -5,8 +5,21 @@ import Image from "next/image";
 import { useAppContext } from "@/context/AppContext";
 import axios from "axios";
 import toast from "react-hot-toast";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 const AddProduct = () => {
+
+  const { isSeller } = useAppContext();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isSeller) {
+      // Redirect if not a seller
+      router.replace('/');
+    }
+  }, [isSeller, router]);
+
 
   const { getToken } = useAppContext();
 

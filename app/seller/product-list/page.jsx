@@ -9,7 +9,13 @@ import toast from "react-hot-toast";
 import axios from "axios";
 
 const ProductList = () => {
-  const { router, getToken, user } = useAppContext();
+  const { router, getToken, user, isSeller } = useAppContext();
+  useEffect(() => {
+    if (!isSeller) {
+      // Redirect if not a seller
+      router.replace('/');
+    }
+  }, [isSeller, router]);
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);

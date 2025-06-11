@@ -18,36 +18,35 @@ export const AppContextProvider = (props) => {
     const router = useRouter()
 
     const { user } = useUser();
-    const {getToken} = useAuth()
+    const { getToken } = useAuth()
     const [products, setProducts] = useState([])
     const [userData, setUserData] = useState(false)
     const [isSeller, setIsSeller] = useState(false)
     const [cartItems, setCartItems] = useState({})
 
     const fetchProductData = async () => {
-        try{
-
+        try {
             const { data } = await axios.get('/api/product/seller-list');
 
             if (data.success) {
                 setProducts(data.products);
-            }
-            else {
+            } else {
                 toast.error(data.message)
             }
-        }
-        catch(error) {
+        } catch (error) {
             toast.error(error?.response?.data?.message || "Failed to fetch products");
         }
     }
 
     const fetchUserData = async () => {
-        if(user.publicMetadata.role === 'seller') {    
+        if (user?.publicMetadata?.role === 'seller') {
             setIsSeller(true)
-        
         }
+
         const token = await getToken()
-        const {data} =await axios.get('/api/user/data' ,{headers: {Authorization: `Bearer ${token}`}})
+        const { data } = await axios.get('/api/user/data', {
+            headers: { Authorization: `Bearer ${token}` }
+        })
 
         if (data.success) {
             setUserData(data.user)
@@ -55,41 +54,31 @@ export const AppContextProvider = (props) => {
         } else {
             console.error("Failed to fetch user data");
         }
-
     }
 
     const addToCart = async (itemId) => {
-
         let cartData = structuredClone(cartItems);
         if (cartData[itemId]) {
             cartData[itemId] += 1;
-        }
-        else {
+        } else {
             cartData[itemId] = 1;
         }
         setCartItems(cartData);
-        
-        if(user){
+
+        if (user) {
             try {
                 const token = await getToken();
-
                 await axios.post('/api/cart/update', { cartData }, {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
+                    headers: { Authorization: `Bearer ${token}` }
                 });
                 toast.success("Item added to cart");
-
             } catch (error) {
                 toast.error(error?.response?.data?.message || "Failed to update cart");
-                
             }
         }
-
     }
 
     const updateCartQuantity = async (itemId, quantity) => {
-
         let cartData = structuredClone(cartItems);
         if (quantity === 0) {
             delete cartData[itemId];
@@ -98,30 +87,24 @@ export const AppContextProvider = (props) => {
         }
         setCartItems(cartData)
 
-        if(user){
+        if (user) {
             try {
                 const token = await getToken();
-
                 await axios.post('/api/cart/update', { cartData }, {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
+                    headers: { Authorization: `Bearer ${token}` }
                 });
                 toast.success("Cart updated");
-
             } catch (error) {
                 toast.error(error?.response?.data?.message || "Failed to update cart");
-                
             }
         }
-
     }
 
     const getCartCount = () => {
         let totalCount = 0;
-        for (const items in cartItems) {
-            if (cartItems[items] > 0) {
-                totalCount += cartItems[items];
+        for (const itemId in cartItems) {
+            if (cartItems[itemId] > 0) {
+                totalCount += cartItems[itemId];
             }
         }
         return totalCount;
@@ -129,10 +112,12 @@ export const AppContextProvider = (props) => {
 
     const getCartAmount = () => {
         let totalAmount = 0;
-        for (const items in cartItems) {
-            let itemInfo = products.find((product) => product._id === items);
-            if (cartItems[items] > 0) {
-                totalAmount += itemInfo.offerPrice * cartItems[items];
+        for (const itemId in cartItems) {
+            const itemInfo = products.find((product) => product._id === itemId);
+            if (itemInfo && cartItems[itemId] > 0) {
+                totalAmount += itemInfo.offerPrice * cartItems[itemId];
+            } else if (!itemInfo) {
+                console.warn(`Product not found for ID: ${itemId}`);
             }
         }
         return Math.floor(totalAmount * 100) / 100;
@@ -143,8 +128,8 @@ export const AppContextProvider = (props) => {
     }, [])
 
     useEffect(() => {
-        if(user){
-             fetchUserData()
+        if (user) {
+            fetchUserData()
         }
     }, [user])
 
