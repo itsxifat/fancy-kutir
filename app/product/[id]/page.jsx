@@ -15,7 +15,7 @@ const Product = () => {
   const { id } = useParams();
   const { products, router, addToCart } = useAppContext();
 
-  const [mainImage, setMainImage] = useState(null);
+  const [mainImage, setMainImage] = useState(0);
   const [productData, setProductData] = useState(null);
 
   const fetchProductData = async () => {
@@ -50,7 +50,7 @@ const Product = () => {
           <div className="px-5 lg:px-16 xl:px-20">
             <div className="rounded-lg overflow-hidden bg-gray-500/10 mb-4">
               <Image
-                src={mainImage || productData.images[0]}
+                src={ productData.images[mainImage] }
                 alt="alt"
                 className="w-full h-auto object-cover mix-blend-multiply"
                 width={1280}
@@ -62,7 +62,7 @@ const Product = () => {
               {productData.images.map((images, index) => (
                 <div
                   key={index}
-                  onClick={() => setMainImage(image)}
+                  onClick={() => setMainImage(index)}
                   className="cursor-pointer rounded-lg overflow-hidden bg-gray-500/10"
                 >
                   <Image
