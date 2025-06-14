@@ -110,7 +110,7 @@ const MyOrders = () => {
                       <p className="flex flex-col">
                         <span>Method: {order.paymentInfo?.method || "N/A"}</span>
                         {order.paymentInfo?.transactionId && (
-                          <span>Transaction ID: {order.paymentInfo.transactionId}</span>
+                          <><span>Transaction ID: {order.paymentInfo.transactionId}</span><span>Account : {order.paymentInfo?.number}</span></>
                         )}
                         <span>
                           Date:{" "}
@@ -122,7 +122,7 @@ const MyOrders = () => {
                         </span>
                         <span>
                           Payment:{" "}
-                          {order.status === "pending" ? "Pending" : "Completed"}
+                          {order.status === "pending" ? "Pending" : "Approved"}
                         </span>
                       </p>
                     </div>

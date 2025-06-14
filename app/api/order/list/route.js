@@ -4,7 +4,7 @@ import Order from "@/models/order";
 import Product from "@/models/product";
 import { getAuth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import mongoose from "mongoose";
+import authSeller from "@/lib/authSeller";
 
 export async function GET(request) {
   try {
@@ -17,34 +17,41 @@ export async function GET(request) {
 
     const orders = await Order.find({ userId }).lean();
 
+    // 2. Extract all address IDs safely
     const addressIds = [
       ...new Set(
         orders
-          .map((order) => {
-            const id = order.address;
-            return typeof id === "object" && id?._id ? id._id.toString() : id?.toString();
+          .map(order => {
+            if (typeof order.address === "string") return order.address;
+            if (order.address && typeof order.address === "object" && order.address._id) {
+              return order.address._id.toString();
+            }
+            return null;
           })
-          .filter((id) => mongoose.Types.ObjectId.isValid(id))
+          .filter(Boolean)
       ),
     ];
 
+    // 3. Fetch all addresses
     const addresses = await Address.find({ _id: { $in: addressIds } }).lean();
-    const addressMap = new Map(addresses.map((addr) => [addr._id.toString(), addr]));
+    const addressMap = new Map(addresses.map(addr => [addr._id.toString(), addr]));
 
+    // 4. Extract product IDs from all orders
     const productIds = [
       ...new Set(
-        orders
-          .flatMap((order) =>
-            order.items.map((item) => item.productId?.toString()).filter((id) => mongoose.Types.ObjectId.isValid(id))
-          )
+        orders.flatMap(order =>
+          order.items.map(item => item.productId?.toString()).filter(Boolean)
+        )
       ),
     ];
 
+    // 5. Fetch all products
     const products = await Product.find({ _id: { $in: productIds } }).lean();
-    const productMap = new Map(products.map((p) => [p._id.toString(), p]));
+    const productMap = new Map(products.map(p => [p._id.toString(), p]));
 
-    const enrichedOrders = orders.map((order) => {
-      const enrichedItems = order.items.map((item) => {
+    // 6. Enrich orders
+    const enrichedOrders = orders.map(order => {
+      const enrichedItems = order.items.map(item => {
         const product = productMap.get(item.productId?.toString()) || null;
         return {
           ...item,
@@ -59,7 +66,12 @@ export async function GET(request) {
 
       return {
         ...order,
-        address: addressMap.get(order.address?.toString()) || null,
+        address:
+          addressMap.get(
+            typeof order.address === "string"
+              ? order.address
+              : order.address?._id?.toString()
+          ) || null,
         items: enrichedItems,
         amount,
       };

@@ -131,6 +131,11 @@ const Orders = () => {
                           .map((item) => `${item.product?.name || "Product"} x ${item.quantity}`)
                           .join(", ")}
                       </span>
+                      <span className="font-medium">
+                        {order.items
+                          .map((item) => `${item.product?._id || "ProductId"} x ${item.quantity}`)
+                          .join(", ")}
+                      </span>
                       <span>Items : {order.items.length}</span>
                     </p>
                   </div>
