@@ -15,6 +15,7 @@ const Orders = () => {
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState("all"); // NEW
 
   useEffect(() => {
     if (!isSeller) {
@@ -49,7 +50,6 @@ const Orders = () => {
     }
   }, [user]);
 
-  // New: Handle status change including reject
   const handleStatusChange = async (orderId, newStatus) => {
     try {
       const token = await getToken();
@@ -64,10 +64,8 @@ const Orders = () => {
       if (data.success) {
         toast.success(data.message || "Order updated");
         if (newStatus === "reject") {
-          // Remove order from local state
           setOrders((prev) => prev.filter((order) => order._id !== orderId));
         } else {
-          // Update order status locally
           setOrders((prev) =>
             prev.map((order) =>
               order._id === orderId ? { ...order, status: newStatus } : order
@@ -82,6 +80,12 @@ const Orders = () => {
     }
   };
 
+  // NEW: Filtered orders based on dropdown
+  const filteredOrders =
+    statusFilter === "all"
+      ? orders
+      : orders.filter((order) => order.status === statusFilter);
+
   return (
     <div className="flex-1 h-screen overflow-scroll flex flex-col justify-between text-sm">
       {loading ? (
@@ -89,11 +93,26 @@ const Orders = () => {
       ) : (
         <div className="md:p-10 p-4 space-y-5">
           <h2 className="text-lg font-medium">Orders</h2>
+
+          {/* ✅ Filter Dropdown */}
+          <div className="mb-4">
+            <label className="mr-2 font-medium">Filter by Status:</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="border rounded p-1"
+            >
+              <option value="all">All</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+            </select>
+          </div>
+
           <div className="max-w-4xl rounded-md">
-            {orders.length === 0 ? (
+            {filteredOrders.length === 0 ? (
               <p className="text-center text-gray-500 py-10">No orders found.</p>
             ) : (
-              orders.map((order, index) => (
+              filteredOrders.map((order, index) => (
                 <div
                   key={order._id || index}
                   className="flex flex-col md:flex-row gap-5 justify-between p-5 border-t border-gray-300"
@@ -147,7 +166,7 @@ const Orders = () => {
                           : "Unknown"}
                       </span>
                     </p>
-                    {/* Dropdown for status update */}
+                    {/* Status update dropdown */}
                     <select
                       value={order.status}
                       onChange={(e) => handleStatusChange(order._id, e.target.value)}

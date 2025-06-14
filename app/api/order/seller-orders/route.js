@@ -17,10 +17,10 @@ export async function GET(request) {
 
     await connectDB();
 
-    // 1. Get orders (no filter shown here, you can add seller/user filter)
+    // 1. Fetch all orders
     const orders = await Order.find({}).lean();
 
-    // 2. Extract all address IDs safely (fix here)
+    // 2. Extract all address IDs safely
     const addressIds = [
       ...new Set(
         orders
@@ -35,13 +35,11 @@ export async function GET(request) {
       ),
     ];
 
-    // 3. Fetch all addresses for those IDs
+    // 3. Fetch all addresses
     const addresses = await Address.find({ _id: { $in: addressIds } }).lean();
-
-    // 4. Map for lookup
     const addressMap = new Map(addresses.map(addr => [addr._id.toString(), addr]));
 
-    // 5. Extract product IDs from all orders
+    // 4. Extract product IDs from all orders
     const productIds = [
       ...new Set(
         orders.flatMap(order =>
@@ -50,30 +48,41 @@ export async function GET(request) {
       ),
     ];
 
-    // 6. Fetch products
+    // 5. Fetch all products
     const products = await Product.find({ _id: { $in: productIds } }).lean();
-
-    // 7. Product lookup map
     const productMap = new Map(products.map(p => [p._id.toString(), p]));
 
-    // 8. Attach address and product objects
-    const enrichedOrders = orders.map(order => ({
-      ...order,
-      address:
-        addressMap.get(
-          typeof order.address === "string"
-            ? order.address
-            : order.address?._id?.toString()
-        ) || null,
-      items: order.items.map(item => ({
-        ...item,
-        product: productMap.get(item.productId?.toString()) || null,
-      })),
-    }));
+    // 6. Enrich orders
+    const enrichedOrders = orders.map(order => {
+      const enrichedItems = order.items.map(item => {
+        const product = productMap.get(item.productId?.toString()) || null;
+        return {
+          ...item,
+          product,
+        };
+      });
+
+      const amount = enrichedItems.reduce((sum, item) => {
+        const price = item.product?.offerPrice ?? item.product?.price ?? 0;
+        return sum + item.quantity * price;
+      }, 0);
+
+      return {
+        ...order,
+        address:
+          addressMap.get(
+            typeof order.address === "string"
+              ? order.address
+              : order.address?._id?.toString()
+          ) || null,
+        items: enrichedItems,
+        amount,
+      };
+    });
 
     return NextResponse.json({ success: true, orders: enrichedOrders });
   } catch (error) {
     console.error("Error fetching orders:", error);
-    return NextResponse.json({ success: false, message: error.message });
+    return NextResponse.json({ success: false, message: error.message }, { status: 500 });
   }
 }

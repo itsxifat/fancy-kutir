@@ -22,7 +22,6 @@ const MyOrders = () => {
       });
 
       if (data.success) {
-        // Assuming data.orders includes full address objects, not just IDs
         setOrders(data.orders.reverse());
       } else {
         toast.error(data.message || "Failed to fetch orders.");
@@ -84,20 +83,26 @@ const MyOrders = () => {
                     {/* Address */}
                     <div>
                       <p>
-                        <span className="font-medium">{order.address?.fullName || "No Name"}</span>
+                        <span className="font-medium">
+                          {order.address?.fullName || "No Name"}
+                        </span>
                         <br />
-                        <span>{order.address?.area}</span>
+                        <span>{order.address?.area || ""}</span>
                         <br />
-                        <span>{`${order.address?.state || ""}, ${order.address?.city || ""}`}</span>
+                        <span>
+                          {[order.address?.city, order.address?.state]
+                            .filter(Boolean)
+                            .join(", ")}
+                        </span>
                         <br />
-                        <span>{order.address?.phoneNumber}</span>
+                        <span>{order.address?.phoneNumber || "No phone"}</span>
                       </p>
                     </div>
 
                     {/* Amount */}
                     <p className="font-medium my-auto whitespace-nowrap">
                       {currency}
-                      {order.amount}
+                      {order.amount?.toFixed(2)}
                     </p>
 
                     {/* Payment Info */}
@@ -107,7 +112,14 @@ const MyOrders = () => {
                         {order.paymentInfo?.transactionId && (
                           <span>Transaction ID: {order.paymentInfo.transactionId}</span>
                         )}
-                        <span>Date: {new Date(order.date).toLocaleDateString()}</span>
+                        <span>
+                          Date:{" "}
+                          {new Date(order.date).toLocaleDateString(undefined, {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </span>
                         <span>
                           Payment:{" "}
                           {order.status === "pending" ? "Pending" : "Completed"}
