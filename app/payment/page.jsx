@@ -112,6 +112,19 @@ const Payment = () => {
       );
 
       if (data.success) {
+        // Facebook Pixel AddToCart event
+        if (typeof window !== "undefined" && window.fbq) {
+          window.fbq('track', 'AddToCart', {
+            value: totalAmount,
+            currency: 'BDT',
+            contents: fixedItems.map(item => ({
+              id: item.product,
+              quantity: item.quantity,
+            })),
+            content_type: 'product',
+          });
+        }
+
         toast.success("Order placed successfully!");
         localStorage.removeItem("tempOrder");
         setCartItems({});

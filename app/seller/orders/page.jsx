@@ -9,13 +9,14 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 
+
 const Orders = () => {
   const { isSeller, currency, getToken, user } = useAppContext();
   const router = useRouter();
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState("all"); // NEW
+  const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
     if (!isSeller) {
@@ -53,6 +54,7 @@ const Orders = () => {
   const handleStatusChange = async (orderId, newStatus) => {
     try {
       const token = await getToken();
+
       const { data } = await axios.post(
         "/api/order/update-status",
         { orderId, status: newStatus },
@@ -61,26 +63,72 @@ const Orders = () => {
         }
       );
 
-      if (data.success) {
-        toast.success(data.message || "Order updated");
-        if (newStatus === "reject") {
-          setOrders((prev) => prev.filter((order) => order._id !== orderId));
-        } else {
-          setOrders((prev) =>
-            prev.map((order) =>
-              order._id === orderId ? { ...order, status: newStatus } : order
-            )
-          );
-        }
-      } else {
+      if (!data.success) {
         toast.error(data.message || "Failed to update order");
+        return;
+      }
+
+      toast.success(data.message || "Order updated");
+
+      if (newStatus === "approved") {
+        const approvedOrder = orders.find((o) => o._id === orderId);
+        const address = approvedOrder.address;
+
+        const payload = {
+          invoice: approvedOrder._id,
+          recipient_name: address?.fullName || "N/A",
+          recipient_phone: address?.phoneNumber || "",
+          recipient_address: `${address?.area}, ${address?.city}, ${address?.state}`,
+          cod_amount: approvedOrder.amount || 0,
+          note: "Deliver ASAP",
+          item_description: approvedOrder.items
+            .map((item) => `${item.product?.name || "Product"} x ${item.quantity}`)
+            .join(", "),
+          delivery_type: 0,
+        };
+
+        const shipRes = await axios.post("/api/ship-order", payload);
+
+        if (shipRes.data?.status === 200) {
+          toast.success("Order sent to Steadfast!");
+          console.log("Steadfast response:", shipRes.data);
+        } else {
+          toast.error("Failed to send to Steadfast");
+          console.error("Steadfast error:", shipRes.data);
+        }
+
+        // Facebook Pixel events
+        if (typeof window !== "undefined" && window.fbq) {
+
+          // Purchase event
+          window.fbq('track', 'Purchase', {
+            value: approvedOrder.amount,
+            currency: 'BDT',
+            contents: approvedOrder.items.map(item => ({
+              id: item.product?._id || '',
+              quantity: item.quantity,
+            })),
+            content_type: 'product',
+            transaction_id: approvedOrder.paymentInfo?.transactionId || '',
+          });
+        }
+      }
+
+      if (newStatus === "reject") {
+        setOrders((prev) => prev.filter((order) => order._id !== orderId));
+      } else {
+        setOrders((prev) =>
+          prev.map((order) =>
+            order._id === orderId ? { ...order, status: newStatus } : order
+          )
+        );
       }
     } catch (error) {
+      console.error(error);
       toast.error(error?.response?.data?.message || "Error updating order");
     }
   };
 
-  // NEW: Filtered orders based on dropdown
   const filteredOrders =
     statusFilter === "all"
       ? orders
@@ -94,7 +142,6 @@ const Orders = () => {
         <div className="md:p-10 p-4 space-y-5">
           <h2 className="text-lg font-medium">Orders</h2>
 
-          {/* ✅ Filter Dropdown */}
           <div className="mb-4">
             <label className="mr-2 font-medium">Filter by Status:</label>
             <select
@@ -171,7 +218,6 @@ const Orders = () => {
                           : "Unknown"}
                       </span>
                     </p>
-                    {/* Status update dropdown */}
                     <select
                       value={order.status}
                       onChange={(e) => handleStatusChange(order._id, e.target.value)}

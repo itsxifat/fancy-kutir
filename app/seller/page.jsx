@@ -1,49 +1,149 @@
-'use client'
-import React, { useState } from "react";
+'use client';
+import React, { useState, useEffect, useRef } from "react";
+import * as bodyPix from '@tensorflow-models/body-pix';
+import '@tensorflow/tfjs';
+import imageCompression from "browser-image-compression";
 import { assets } from "@/assets/assets";
 import Image from "next/image";
-import { useAppContext } from "@/context/AppContext";
-import axios from "axios";
 import toast from "react-hot-toast";
+import { useAppContext } from "@/context/AppContext";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import axios from "axios";
 
 const AddProduct = () => {
-
-  const { isSeller } = useAppContext();
+  const { isSeller, getToken } = useAppContext();
   const router = useRouter();
 
   useEffect(() => {
     if (!isSeller) {
-      // Redirect if not a seller
       router.replace('/');
     }
   }, [isSeller, router]);
 
+  // Store original files for preview and processed files for upload
+  const [files, setFiles] = useState([null, null, null, null]);
+  const [processedFiles, setProcessedFiles] = useState([null, null, null, null]);
 
-  const { getToken } = useAppContext();
-
-  const [files, setFiles] = useState([]);
+  // Product fields
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('Earphone');
   const [price, setPrice] = useState('');
   const [offerPrice, setOfferPrice] = useState('');
 
+  // Load BodyPix model once
+  const bodyPixRef = useRef(null);
+  useEffect(() => {
+    const loadModel = async () => {
+      bodyPixRef.current = await bodyPix.load();
+    };
+    loadModel();
+  }, []);
+
+  // Remove background + compress + add white bg
+  const removeBackgroundWithBodyPix = async (file) => {
+    if (!bodyPixRef.current) {
+      toast.error("Background remover model is not loaded yet");
+      return file; // fallback to original
+    }
+
+    const imageBitmap = await createImageBitmap(file);
+    const canvas = document.createElement('canvas');
+    canvas.width = imageBitmap.width;
+    canvas.height = imageBitmap.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(imageBitmap, 0, 0);
+
+    // Segment person (or main subject)
+    const segmentation = await bodyPixRef.current.segmentPerson(canvas, {
+      internalResolution: 'medium',
+      segmentationThreshold: 0.7,
+    });
+
+    const maskBackground = true;
+    const foregroundColor = { r: 0, g: 0, b: 0, a: 0 };  // transparent
+    const backgroundColor = { r: 0, g: 0, b: 0, a: 255 }; // opaque black
+
+    const mask = bodyPix.toMask(segmentation, foregroundColor, backgroundColor);
+
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+
+    // Make background pixels transparent
+    for (let i = 0; i < data.length; i += 4) {
+      if (mask.data[i + 3] === 255) { // background alpha
+        data[i + 3] = 0;
+      }
+    }
+    ctx.putImageData(imageData, 0, 0);
+
+    // Draw white background behind transparent image
+    const finalCanvas = document.createElement('canvas');
+    finalCanvas.width = canvas.width;
+    finalCanvas.height = canvas.height;
+    const finalCtx = finalCanvas.getContext('2d');
+
+    finalCtx.fillStyle = "white";
+    finalCtx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+    finalCtx.drawImage(canvas, 0, 0);
+
+    // Convert final canvas to blob and compress
+    const blob = await new Promise((resolve) => finalCanvas.toBlob(resolve, 'image/jpeg', 1));
+
+    const compressedFile = await imageCompression(blob, {
+      maxSizeMB: 0.3,
+      maxWidthOrHeight: 1024,
+      useWebWorker: true,
+      initialQuality: 0.7,
+    });
+
+    return compressedFile;
+  };
+
+  // Handle input file change and process image
+  const handleFileChange = async (e, index) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    toast.loading("Removing background and compressing...", { id: "img-process" });
+    try {
+      const processed = await removeBackgroundWithBodyPix(file);
+
+      // Update processed files for upload
+      const updatedProcessed = [...processedFiles];
+      updatedProcessed[index] = processed;
+      setProcessedFiles(updatedProcessed);
+
+      // Update files for preview
+      const updatedFiles = [...files];
+      updatedFiles[index] = processed;
+      setFiles(updatedFiles);
+
+      toast.success("Image processed", { id: "img-process" });
+    } catch (err) {
+      toast.error("Image processing failed", { id: "img-process" });
+      console.error(err);
+    }
+  };
+
+  // Form submit with processed images
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const formData = new FormData();
+    if (!isSeller) {
+      toast.error("Only sellers can add products.");
+      return;
+    }
 
+    const formData = new FormData();
     formData.append('name', name);
     formData.append('description', description);
     formData.append('category', category);
     formData.append('price', price);
     formData.append('offerPrice', offerPrice);
 
-    // Append each file under the key "images"
-    for (let i = 0; i < files.length; i++) {
-      if(files[i]) formData.append('images', files[i]);
+    for (let i = 0; i < processedFiles.length; i++) {
+      if (processedFiles[i]) formData.append('images', processedFiles[i]);
     }
 
     try {
@@ -54,10 +154,16 @@ const AddProduct = () => {
 
       if (data.error) {
         toast.error(data.error);
-      }
-      if (data.success) {
+      } else if (data.success) {
         toast.success("Product added successfully");
-        // Optional: clear form here
+        // Optional: Reset form here
+        setName('');
+        setDescription('');
+        setCategory('Earphone');
+        setPrice('');
+        setOfferPrice('');
+        setFiles([null, null, null, null]);
+        setProcessedFiles([null, null, null, null]);
       }
     } catch (error) {
       toast.error("Failed to add product");
@@ -74,15 +180,12 @@ const AddProduct = () => {
             {[...Array(4)].map((_, index) => (
               <label key={index} htmlFor={`image${index}`}>
                 <input
-                  name="images"    // <-- name should be 'images'
-                  onChange={(e) => {
-                    const updatedFiles = [...files];
-                    updatedFiles[index] = e.target.files[0];
-                    setFiles(updatedFiles);
-                  }}
+                  name="images"
+                  onChange={(e) => handleFileChange(e, index)}
                   type="file"
                   id={`image${index}`}
                   hidden
+                  accept="image/*"
                 />
                 <Image
                   className="max-w-24 cursor-pointer"
@@ -96,7 +199,8 @@ const AddProduct = () => {
             ))}
           </div>
         </div>
-        {/* Name, description, category, price, offerPrice inputs below */}
+
+        {/* Name input */}
         <div className="flex flex-col gap-1 max-w-md">
           <label className="text-base font-medium" htmlFor="product-name">
             Product Name
@@ -111,6 +215,8 @@ const AddProduct = () => {
             required
           />
         </div>
+
+        {/* Description textarea */}
         <div className="flex flex-col gap-1 max-w-md">
           <label className="text-base font-medium" htmlFor="product-description">
             Product Description
@@ -125,6 +231,8 @@ const AddProduct = () => {
             required
           ></textarea>
         </div>
+
+        {/* Category, price, offerPrice */}
         <div className="flex items-center gap-5 flex-wrap">
           <div className="flex flex-col gap-1 w-32">
             <label className="text-base font-medium" htmlFor="category">
@@ -134,7 +242,7 @@ const AddProduct = () => {
               id="category"
               className="outline-none md:py-2.5 py-2 px-3 rounded border border-gray-500/40"
               onChange={(e) => setCategory(e.target.value)}
-              defaultValue={category}
+              value={category}
             >
               <option value="Earphone">Earphone</option>
               <option value="Headphone">Headphone</option>
@@ -174,6 +282,7 @@ const AddProduct = () => {
             />
           </div>
         </div>
+
         <button type="submit" className="px-8 py-2.5 bg-orange-600 text-white font-medium rounded">
           ADD
         </button>
