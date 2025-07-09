@@ -441,7 +441,7 @@ const ProductList = () => {
                         <h3 className="font-medium truncate">{product.name}</h3>
                         <p className="text-sm text-gray-600">{product.category}</p>
                         <p className="text-sm">
-                          Price: <span className="font-semibold">${product.price}</span>
+                          Price: <span className="font-semibold line-through">${product.price}</span>
                         </p>
                         <p className="text-sm text-gray-500">
                           Offer: <span>${product.offerPrice}</span>

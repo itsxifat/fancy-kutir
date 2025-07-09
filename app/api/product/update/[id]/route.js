@@ -1,9 +1,10 @@
-import connectDB from '@/config/db'; // your MongoDB connection helper
-import Product from '@/models/product'; // your Product mongoose model
+import connectDB from '@/config/db';
+import Product from '@/models/product';
 import { getAuth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 
-export async function PUT(request, { params }) {
+export async function PUT(request, context) {
+  const params = await context.params; // ✅ await here
   const { id } = params;
 
   try {
@@ -15,9 +16,8 @@ export async function PUT(request, { params }) {
     }
 
     const data = await request.json();
-
-    // Validate required fields if needed
     const { name, category, price, offerPrice, description } = data;
+
     if (!name || !category || price == null || offerPrice == null) {
       return NextResponse.json(
         { error: 'Missing required fields' },
@@ -25,18 +25,15 @@ export async function PUT(request, { params }) {
       );
     }
 
-    // Find product to update and check ownership
     const product = await Product.findById(id);
     if (!product) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
 
-    // Optional: Check if the logged-in user owns this product (depends on your model)
     if (product.userId !== auth.userId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Update product fields
     product.name = name;
     product.category = category;
     product.price = price;
