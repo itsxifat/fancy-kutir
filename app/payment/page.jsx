@@ -9,9 +9,12 @@ import axios from "axios";
 const Payment = () => {
   const [number, setNumber] = useState("");
   const [transactionId, setTransactionId] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("bkash"); // 'bkash' | 'online'
   const [tempOrder, setTempOrder] = useState(null);
   const [products, setProducts] = useState([]);
   const [totalAmount, setTotalAmount] = useState(null);
+  const [paidNow, setPaidNow] = useState(0);
+  const [dueAmount, setDueAmount] = useState(0);
   const { getToken, setCartItems } = useAppContext();
   const router = useRouter();
 
@@ -65,12 +68,15 @@ const Payment = () => {
     const parsedOrder = JSON.parse(orderData);
     setTempOrder(parsedOrder);
 
+    setPaidNow(parsedOrder?.paidAmount || 0);
+    setDueAmount(parsedOrder?.dueAmount || 0);
+
     if (parsedOrder.items?.length) {
       calculateTotal(parsedOrder.items);
     }
   }, [router]);
 
-  const handlePay = async () => {
+  const handleManualBkashPay = async () => {
     if (!number || !transactionId) {
       return toast.error("Please fill all payment fields.");
     }
@@ -95,16 +101,21 @@ const Payment = () => {
         quantity: item.quantity,
       }));
 
+      const referralCode = tempOrder.referralCode || null;
+
       const { data } = await axios.post(
         "/api/order/create",
         {
           address: tempOrder.address,
           items: fixedItems,
+          paidAmount: paidNow,
+          dueAmount: dueAmount,
           paymentInfo: {
             number,
             transactionId,
             method: "Bkash",
           },
+          referralCode,
         },
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -112,19 +123,6 @@ const Payment = () => {
       );
 
       if (data.success) {
-        // Facebook Pixel AddToCart event
-        if (typeof window !== "undefined" && window.fbq) {
-          window.fbq('track', 'AddToCart', {
-            value: totalAmount,
-            currency: 'BDT',
-            contents: fixedItems.map(item => ({
-              id: item.product,
-              quantity: item.quantity,
-            })),
-            content_type: 'product',
-          });
-        }
-
         toast.success("Order placed successfully!");
         localStorage.removeItem("tempOrder");
         setCartItems({});
@@ -138,19 +136,36 @@ const Payment = () => {
     }
   };
 
+  const handleOnlinePay = async () => {
+    toast.success("Redirecting to online payment...");
+    // Example: Redirect to SSLCommerz or Stripe
+    // You can call `/api/sslcommerz/initiate` or similar route here
+  };
+
   return (
     <div className="flex flex-col items-center text-center pt-10 pb-14 min-h-screen bg-white">
       <h1 className="md:text-4xl text-2xl font-medium mb-2">Make Payment</h1>
       <p className="md:text-base text-gray-500 pb-4">
-        Send money using Bkash to{" "}
-        <span
-          onClick={copyBkashNumber}
-          className="text-orange-600 font-semibold cursor-pointer hover:underline active:scale-95 transition"
-        >
-          {bkashNumber}
-        </span>
+        Choose a payment method to proceed.
       </p>
 
+      {/* Payment Method Tabs */}
+      <div className="flex gap-3 mb-5">
+        <button
+          className={`px-4 py-2 rounded border ${paymentMethod === "bkash" ? "bg-orange-600 text-white" : "bg-white border-gray-300 text-gray-700"}`}
+          onClick={() => setPaymentMethod("bkash")}
+        >
+          Manual Bkash
+        </button>
+        <button
+          className={`px-4 py-2 rounded border ${paymentMethod === "online" ? "bg-blue-600 text-white" : "bg-white border-gray-300 text-gray-700"}`}
+          onClick={() => setPaymentMethod("online")}
+        >
+          Online Payment
+        </button>
+      </div>
+
+      {/* Order Summary */}
       {products.length > 0 && (
         <div className="w-full max-w-2xl text-left bg-gray-50 p-4 rounded shadow mb-4">
           <h2 className="text-lg font-semibold mb-3 text-center">Order Summary</h2>
@@ -160,34 +175,68 @@ const Payment = () => {
               <span>৳{p.subtotal}</span>
             </div>
           ))}
-          <div className="flex justify-between font-bold text-lg mt-4">
+          <div className="flex justify-between font-semibold text-base mt-3">
             <span>Total:</span>
-            <span className="text-orange-600">৳{totalAmount}</span>
+            <span>৳{totalAmount}</span>
           </div>
+          <div className="flex justify-between text-green-700 font-medium">
+            <span>Pay Now:</span>
+            <span>৳{paidNow}</span>
+          </div>
+          {dueAmount > 0 && (
+            <div className="flex justify-between text-red-600 font-medium">
+              <span>Due on Delivery:</span>
+              <span>৳{dueAmount}</span>
+            </div>
+          )}
         </div>
       )}
 
       <div className="flex flex-col gap-4 w-[90%] max-w-xl">
-        <input
-          type="number"
-          placeholder="Your Bkash Number"
-          className="border border-gray-300 rounded p-2 text-center"
-          value={number}
-          onChange={(e) => setNumber(e.target.value)}
-        />
-        <input
-          type="text"
-          placeholder="Transaction ID"
-          className="border border-gray-300 rounded p-2 text-center"
-          value={transactionId}
-          onChange={(e) => setTransactionId(e.target.value)}
-        />
-        <button
-          onClick={handlePay}
-          className="bg-orange-600 text-white py-2 rounded hover:bg-orange-700 font-medium"
-        >
-          Confirm Payment
-        </button>
+        {/* Manual Bkash Inputs */}
+        {paymentMethod === "bkash" && (
+          <>
+            <p className="text-sm text-gray-500">
+              Send to{" "}
+              <span
+                onClick={copyBkashNumber}
+                className="text-orange-600 font-semibold cursor-pointer hover:underline"
+              >
+                {bkashNumber}
+              </span>
+            </p>
+            <input
+              type="number"
+              placeholder="Your Bkash Number"
+              className="border border-gray-300 rounded p-2 text-center"
+              value={number}
+              onChange={(e) => setNumber(e.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Transaction ID"
+              className="border border-gray-300 rounded p-2 text-center"
+              value={transactionId}
+              onChange={(e) => setTransactionId(e.target.value)}
+            />
+            <button
+              onClick={handleManualBkashPay}
+              className="bg-orange-600 text-white py-2 rounded hover:bg-orange-700 font-medium"
+            >
+              Confirm Manual Payment
+            </button>
+          </>
+        )}
+
+        {/* Online Payment Button */}
+        {paymentMethod === "online" && (
+          <button
+            onClick={handleOnlinePay}
+            className="bg-blue-600 text-white py-3 rounded hover:bg-blue-700 font-semibold"
+          >
+            Pay ৳{paidNow} via Online Payment Gateway
+          </button>
+        )}
       </div>
     </div>
   );

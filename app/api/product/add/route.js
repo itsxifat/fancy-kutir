@@ -30,8 +30,9 @@ export async function POST(request) {
     const price = formData.get('price');
     const offerPrice = formData.get('offerPrice');
 
-    const files = formData.getAll('images');  // <-- must be 'images' to match frontend
+    const files = formData.getAll('images');  
 
+    // Validate all required fields
     if (!name || !description || !category || !price || !files.length) {
       return new Response(JSON.stringify({ error: "Missing required fields or files" }), { status: 400 });
     }
@@ -64,14 +65,15 @@ export async function POST(request) {
 
     await connectDB();
 
+    // Create product with validated category
     const newProduct = await Product.create({
       userId,
       name,
       description,
-      category,
+      category,           // <- ensure this comes from frontend, no default
       price: Number(price),
-      offerPrice: Number(offerPrice),
-      images,        // <-- Save with plural 'images'
+      offerPrice: offerPrice ? Number(offerPrice) : undefined,
+      images,
       date: Date.now()
     });
 

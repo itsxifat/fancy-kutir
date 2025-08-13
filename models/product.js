@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const productSchema = new mongoose.Schema({
   userId: {
-    type: String,
+    type: String, // or mongoose.Schema.Types.ObjectId if your user ids are ObjectIds
     required: true,
     ref: 'User'
   },
@@ -24,15 +24,14 @@ const productSchema = new mongoose.Schema({
   },
   offerPrice: {
     type: Number,
-    required: false
   },
-  images: {              // <-- Use plural images here
+  images: {
     type: [String],
     required: true
   },
   date: {
-    type: Number,
-    required: true,
+    type: Date,
+    default: Date.now,
   }
 });
 

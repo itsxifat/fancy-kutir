@@ -67,6 +67,9 @@ export async function GET(request) {
         return sum + item.quantity * price;
       }, 0);
 
+      const paidAmount = order.paidAmount ?? (order.paymentInfo?.method === "CashOnDelivery" ? 100 : amount);
+      const dueAmount = order.dueAmount ?? (amount - paidAmount);
+
       return {
         ...order,
         address:
@@ -77,6 +80,8 @@ export async function GET(request) {
           ) || null,
         items: enrichedItems,
         amount,
+        paidAmount,
+        dueAmount,
       };
     });
 

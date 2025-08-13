@@ -72,7 +72,7 @@ const MyOrders = () => {
                           {order.items
                             .map(
                               (item) =>
-                                `${item.product?.name || "Product not found"} x ${item.quantity}`
+                                `${item.product?.name || "Product not found"} - ${currency}${item.product?.price ?? 0} x ${item.quantity}`
                             )
                             .join(", ")}
                         </span>
@@ -99,18 +99,30 @@ const MyOrders = () => {
                       </p>
                     </div>
 
-                    {/* Amount */}
-                    <p className="font-medium my-auto whitespace-nowrap">
-                      {currency}
-                      {order.amount?.toFixed(2)}
-                    </p>
+                    {/* Amounts */}
+                    <div className="flex flex-col my-auto text-right">
+                      <p className="font-medium">
+                        Total: {currency}{order.amount?.toFixed(2)}
+                      </p>
+                      <p className="text-green-600 font-medium">
+                        Paid: {currency}{order.paidAmount?.toFixed(2)}
+                      </p>
+                      {order.dueAmount > 0 && (
+                        <p className="text-red-600 font-medium">
+                          Due: {currency}{order.dueAmount?.toFixed(2)}
+                        </p>
+                      )}
+                    </div>
 
                     {/* Payment Info */}
                     <div>
                       <p className="flex flex-col">
                         <span>Method: {order.paymentInfo?.method || "N/A"}</span>
                         {order.paymentInfo?.transactionId && (
-                          <><span>Transaction ID: {order.paymentInfo.transactionId}</span><span>Account : {order.paymentInfo?.number}</span></>
+                          <>
+                            <span>Transaction ID: {order.paymentInfo.transactionId}</span>
+                            <span>Account: {order.paymentInfo?.number}</span>
+                          </>
                         )}
                         <span>
                           Date:{" "}
@@ -121,8 +133,7 @@ const MyOrders = () => {
                           })}
                         </span>
                         <span>
-                          Payment:{" "}
-                          {order.status === "pending" ? "Pending" : "Approved"}
+                          Status: {order.status === "pending" ? "Pending" : "Approved"}
                         </span>
                       </p>
                     </div>

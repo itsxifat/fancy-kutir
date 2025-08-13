@@ -10,10 +10,6 @@ const addressSchema = new mongoose.Schema({
     state: { type: String, required: true },
 });
 
-// ❌ BUGGY
-// const Address = mongoose.models.Address || mongoose.model("Address", AddressSchema);
-
-// ✅ FIXED
 const Address = mongoose.models.Address || mongoose.model("Address", addressSchema);
 
 export default Address;

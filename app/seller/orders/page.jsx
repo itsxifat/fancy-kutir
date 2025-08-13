@@ -9,7 +9,6 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 
-
 const Orders = () => {
   const { isSeller, currency, getToken, user } = useAppContext();
   const router = useRouter();
@@ -17,6 +16,8 @@ const Orders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sentOrders, setSentOrders] = useState({});
 
   useEffect(() => {
     if (!isSeller) {
@@ -37,9 +38,7 @@ const Orders = () => {
         toast.error(data.message || "Failed to fetch orders.");
       }
     } catch (error) {
-      toast.error(
-        error?.response?.data?.message || error?.message || "Failed to fetch orders."
-      );
+      toast.error(error?.response?.data?.message || "Failed to fetch orders.");
     } finally {
       setLoading(false);
     }
@@ -54,85 +53,92 @@ const Orders = () => {
   const handleStatusChange = async (orderId, newStatus) => {
     try {
       const token = await getToken();
-
       const { data } = await axios.post(
         "/api/order/update-status",
         { orderId, status: newStatus },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      if (!data.success) {
-        toast.error(data.message || "Failed to update order");
-        return;
-      }
+      if (!data.success) return toast.error(data.message || "Failed to update status");
 
-      toast.success(data.message || "Order updated");
+      toast.success(data.message || "Status updated");
 
-      if (newStatus === "approved") {
-        const approvedOrder = orders.find((o) => o._id === orderId);
-        const address = approvedOrder.address;
-
-        const payload = {
-          invoice: approvedOrder._id,
-          recipient_name: address?.fullName || "N/A",
-          recipient_phone: address?.phoneNumber || "",
-          recipient_address: `${address?.area}, ${address?.city}, ${address?.state}`,
-          cod_amount: approvedOrder.amount || 0,
-          note: "Deliver ASAP",
-          item_description: approvedOrder.items
-            .map((item) => `${item.product?.name || "Product"} x ${item.quantity}`)
-            .join(", "),
-          delivery_type: 0,
-        };
-
-        const shipRes = await axios.post("/api/ship-order", payload);
-
-        if (shipRes.data?.status === 200) {
-          toast.success("Order sent to Steadfast!");
-          console.log("Steadfast response:", shipRes.data);
-        } else {
-          toast.error("Failed to send to Steadfast");
-          console.error("Steadfast error:", shipRes.data);
-        }
-
-        // Facebook Pixel events
-        if (typeof window !== "undefined" && window.fbq) {
-
-          // Purchase event
-          window.fbq('track', 'Purchase', {
-            value: approvedOrder.amount,
-            currency: 'BDT',
-            contents: approvedOrder.items.map(item => ({
-              id: item.product?._id || '',
-              quantity: item.quantity,
-            })),
-            content_type: 'product',
-            transaction_id: approvedOrder.paymentInfo?.transactionId || '',
-          });
-        }
-      }
+      const updatedOrders = orders.map((order) =>
+        order._id === orderId ? { ...order, status: newStatus } : order
+      );
+      setOrders(updatedOrders);
 
       if (newStatus === "reject") {
         setOrders((prev) => prev.filter((order) => order._id !== orderId));
-      } else {
-        setOrders((prev) =>
-          prev.map((order) =>
-            order._id === orderId ? { ...order, status: newStatus } : order
-          )
-        );
       }
     } catch (error) {
-      console.error(error);
       toast.error(error?.response?.data?.message || "Error updating order");
     }
   };
 
-  const filteredOrders =
+  const handleSteadfastShipment = async (order) => {
+    try {
+      const address = order.address;
+
+      const payload = {
+        invoice: order._id,
+        recipient_name: address?.fullName || "N/A",
+        recipient_phone: address?.phoneNumber || "",
+        recipient_address: `${address?.area}, ${address?.city}, ${address?.state}`,
+        cod_amount: order.dueAmount || 0,
+        note: "Deliver ASAP",
+        item_description: order.items
+          .map((item) => `${item.product?.name || "Product"} x ${item.quantity}`)
+          .join(", "),
+        delivery_type: 0,
+      };
+
+      const res = await axios.post("/api/ship-order", payload);
+
+      if (res.data?.status === 200) {
+        toast.success("Order sent to Steadfast!");
+        setSentOrders((prev) => ({ ...prev, [order._id]: true }));
+      } else {
+        toast.error("Failed to send to Steadfast");
+      }
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Error sending to Steadfast");
+    }
+  };
+
+  // Filter orders by status first
+  let filteredOrders =
     statusFilter === "all"
       ? orders
       : orders.filter((order) => order.status === statusFilter);
+
+  // Then filter by search term
+  if (searchTerm.trim() !== "") {
+    const lowerTerm = searchTerm.toLowerCase();
+    filteredOrders = filteredOrders.filter((order) => {
+      const searchStr = [
+        order.address?.fullName,
+        order.address?.area,
+        order.address?.city,
+        order.address?.state,
+        order.address?.phoneNumber,
+        order.paymentInfo?.method,
+        order.paymentInfo?.number,
+        order.paymentInfo?.transactionId,
+        order.referralCode,
+        new Date(order.date).toLocaleDateString(),
+        order.items
+          .map((item) => `${item.product?.name || ""} ${item.product?._id || ""}`)
+          .join(" "),
+        order._id,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return searchStr.includes(lowerTerm);
+    });
+  }
 
   return (
     <div className="flex-1 h-screen overflow-scroll flex flex-col justify-between text-sm">
@@ -142,82 +148,114 @@ const Orders = () => {
         <div className="md:p-10 p-4 space-y-5">
           <h2 className="text-lg font-medium">Orders</h2>
 
-          <div className="mb-4">
-            <label className="mr-2 font-medium">Filter by Status:</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="border rounded p-1"
-            >
-              <option value="all">All</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-            </select>
+          <div className="flex flex-col md:flex-row md:items-center md:gap-4 mb-4">
+            <div>
+              <label className="mr-2 font-medium">Filter by Status:</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="border rounded p-1"
+              >
+                <option value="all">All</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+              </select>
+            </div>
+
+            <div className="mt-3 md:mt-0 flex-1">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by date, account, address, phone, product, etc."
+                className="w-full border rounded p-2 text-sm"
+              />
+            </div>
           </div>
 
-          <div className="max-w-4xl rounded-md">
+          <div className="space-y-4">
             {filteredOrders.length === 0 ? (
               <p className="text-center text-gray-500 py-10">No orders found.</p>
             ) : (
               filteredOrders.map((order, index) => (
                 <div
                   key={order._id || index}
-                  className="flex flex-col md:flex-row gap-5 justify-between p-5 border-t border-gray-300"
+                  className="border border-gray-200 rounded-md p-4 grid grid-cols-1 md:grid-cols-6 gap-4 bg-white shadow-sm"
                 >
-                  <div className="flex-1 flex gap-5 max-w-80">
+                  {/* Product Info */}
+                  <div className="flex gap-3">
                     <Image
-                      className="max-w-16 max-h-16 object-cover"
+                      className="w-16 h-16 object-cover shrink-0"
                       src={assets.box_icon}
                       alt="box_icon"
                       width={64}
                       height={64}
                     />
-                    <p className="flex flex-col gap-3">
-                      <span className="font-medium">
+                    <div className="text-sm break-words">
+                      <p className="font-semibold">
                         {order.items
                           .map((item) => `${item.product?.name || "Product"} x ${item.quantity}`)
                           .join(", ")}
-                      </span>
-                      <span className="font-medium">
+                      </p>
+                      <p className="text-gray-500 text-xs break-all">
                         {order.items
-                          .map((item) => `${item.product?._id || "ProductId"} x ${item.quantity}`)
+                          .map((item) => `${item.product?._id || "ID"} x ${item.quantity}`)
                           .join(", ")}
-                      </span>
-                      <span>Items : {order.items.length}</span>
-                    </p>
+                      </p>
+                      <p>Items: {order.items.length}</p>
+                    </div>
                   </div>
-                  <div>
+
+                  {/* Customer */}
+                  <div className="text-sm break-words">
+                    <p className="font-semibold">{order.address?.fullName || "No Name"}</p>
+                    <p>{order.address?.area}</p>
                     <p>
-                      <span className="font-medium">{order.address?.fullName || "No Name"}</span>
-                      <br />
-                      <span>{order.address?.area || "No area"}</span>
-                      <br />
-                      <span>{`${order.address?.city || ""}, ${order.address?.state || ""}`}</span>
-                      <br />
-                      <span>{order.address?.phoneNumber || "No phone"}</span>
+                      {order.address?.city}, {order.address?.state}
+                    </p>
+                    <p>{order.address?.phoneNumber}</p>
+                  </div>
+
+                  {/* Referral */}
+                  <div className="text-center text-sm flex flex-col justify-center">
+                    <p className="font-semibold">Referral Code:</p>
+                    <p>{order.referralCode || "N/A"}</p>
+                  </div>
+
+                  {/* Amounts */}
+                  <div className="text-sm text-center flex flex-col justify-center font-medium">
+                    <p>
+                      Total: {currency}
+                      {order.amount || 0}
+                    </p>
+                    <p className="text-green-600">
+                      Paid: {currency}
+                      {order.paidAmount || 0}
+                    </p>
+                    <p className="text-red-600">
+                      Due: {currency}
+                      {order.dueAmount || 0}
                     </p>
                   </div>
-                  <p className="font-medium my-auto">
-                    {currency}
-                    {order.amount}
-                  </p>
-                  <div>
-                    <p className="flex flex-col mb-2">
-                      <span>Method : {order.paymentInfo?.method}</span>
-                      <span>Account : {order.paymentInfo?.number}</span>
-                      <span>TrxId : {order.paymentInfo?.transactionId}</span>
-                      <span>Date : {new Date(order.date).toLocaleDateString()}</span>
-                      <span>
-                        Payment :{" "}
-                        {order.status === "pending"
-                          ? "Pending"
-                          : order.status === "approved"
-                          ? "Approved"
-                          : order.status === "reject"
-                          ? "Rejected"
-                          : "Unknown"}
-                      </span>
+
+                  {/* Payment Info */}
+                  <div className="text-sm break-words">
+                    <p>Method: {order.paymentInfo?.method}</p>
+                    <p>Account: {order.paymentInfo?.number}</p>
+                    <p>TrxId: {order.paymentInfo?.transactionId}</p>
+                    <p>Date: {new Date(order.date).toLocaleDateString()}</p>
+                    <p>
+                      Payment:{" "}
+                      {order.status === "pending"
+                        ? "Pending"
+                        : order.status === "approved"
+                        ? "Approved"
+                        : "Rejected"}
                     </p>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex flex-col gap-2 justify-center text-sm">
                     <select
                       value={order.status}
                       onChange={(e) => handleStatusChange(order._id, e.target.value)}
@@ -227,6 +265,23 @@ const Orders = () => {
                       <option value="approved">Approved</option>
                       <option value="reject">Reject</option>
                     </select>
+
+                    {order.status === "approved" && (
+                      <>
+                        {sentOrders[order._id] ? (
+                          <span className="text-green-600 font-semibold text-center">
+                            Sent to Steadfast
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleSteadfastShipment(order)}
+                            className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition w-full"
+                          >
+                            Send COD ৳{order.dueAmount || 0}
+                          </button>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
               ))

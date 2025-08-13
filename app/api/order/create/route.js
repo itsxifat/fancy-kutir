@@ -11,8 +11,9 @@ export async function POST(request) {
 
     const { userId } = getAuth(request);
     const body = await request.json();
-    const { address, items, paymentInfo } = body;
+    const { address, items, paymentInfo, referralCode, paidAmount, dueAmount } = body;
 
+    // Basic validation
     if (!userId || !address || !items || !items.length || !paymentInfo) {
       return NextResponse.json({ success: false, message: "Invalid order data." });
     }
@@ -24,37 +25,61 @@ export async function POST(request) {
     }
 
     // Calculate total amount
-    const amount = await items.reduce(async (accP, item) => {
-      const acc = await accP;
+    let amount = 0;
+    for (const item of items) {
       const product = await Product.findById(item.product);
       if (!product) throw new Error(`Product not found: ${item.product}`);
-      return acc + product.price * item.quantity;
-    }, 0);
+      amount += product.price * item.quantity;
+    }
 
+    // Map items correctly to match Order schema
     const mappedItems = items.map(item => ({
-      productId: item.product,
+      product: item.product, // ✅ Matches schema exactly
       quantity: item.quantity,
     }));
+
+    // Use paidAmount and dueAmount from frontend if provided, else fallback logic
+    const paid =
+      typeof paidAmount === "number"
+        ? paidAmount
+        : paymentInfo.method === "CashOnDelivery"
+        ? 100
+        : amount;
+
+    const due =
+      typeof dueAmount === "number"
+        ? dueAmount
+        : paymentInfo.method === "CashOnDelivery"
+        ? amount - paid
+        : 0;
 
     const newOrder = new Order({
       userId,
       address,
-      items: mappedItems,
+      items: mappedItems, // ✅ Correct field
       amount,
+      paidAmount: paid,
+      dueAmount: due,
       paymentInfo,
       status: 'pending',
       date: Date.now(),
+      referralCode: referralCode || null,
     });
 
     await newOrder.save();
 
+    // Clear user cart
     const user = await User.findById(userId);
     if (user) {
       user.cartItems = [];
       await user.save();
     }
 
-    return NextResponse.json({ success: true, message: 'Order placed successfully', order: newOrder });
+    return NextResponse.json({
+      success: true,
+      message: 'Order placed successfully',
+      order: newOrder
+    });
   } catch (error) {
     console.error('Order creation failed:', error);
     return NextResponse.json({ success: false, message: error.message });

@@ -159,7 +159,7 @@ const AddProduct = () => {
         // Optional: Reset form here
         setName('');
         setDescription('');
-        setCategory('Earphone');
+        setCategory('Three-piece');
         setPrice('');
         setOfferPrice('');
         setFiles([null, null, null, null]);
@@ -244,8 +244,8 @@ const AddProduct = () => {
               onChange={(e) => setCategory(e.target.value)}
               value={category}
             >
-              <option value="Earphone">Earphone</option>
-              <option value="Headphone">Headphone</option>
+              <option value="Three-piece">Three Piece</option>
+              <option value="Orna">Orna</option>
               <option value="Watch">Watch</option>
               <option value="Smartphone">Smartphone</option>
               <option value="Laptop">Laptop</option>
