@@ -12,7 +12,7 @@ export async function GET(request) {
     const isSeller = await authSeller(userId);
 
     if (!isSeller) {
-      return NextResponse.json({ success: false }, { status: 403 });
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
     }
 
     await connectDB();
@@ -39,11 +39,11 @@ export async function GET(request) {
     const addresses = await Address.find({ _id: { $in: addressIds } }).lean();
     const addressMap = new Map(addresses.map(addr => [addr._id.toString(), addr]));
 
-    // 4. Extract product IDs from all orders
+    // 4. Extract all product IDs from orders
     const productIds = [
       ...new Set(
         orders.flatMap(order =>
-          order.items.map(item => item.productId?.toString()).filter(Boolean)
+          order.items.map(item => item.product?.toString()).filter(Boolean)
         )
       ),
     ];
@@ -52,10 +52,10 @@ export async function GET(request) {
     const products = await Product.find({ _id: { $in: productIds } }).lean();
     const productMap = new Map(products.map(p => [p._id.toString(), p]));
 
-    // 6. Enrich orders
+    // 6. Enrich orders with product details and calculate amounts
     const enrichedOrders = orders.map(order => {
       const enrichedItems = order.items.map(item => {
-        const product = productMap.get(item.productId?.toString()) || null;
+        const product = productMap.get(item.product?.toString()) || null;
         return {
           ...item,
           product,
@@ -67,7 +67,7 @@ export async function GET(request) {
         return sum + item.quantity * price;
       }, 0);
 
-      const paidAmount = order.paidAmount ?? (order.paymentInfo?.method === "CashOnDelivery" ? 100 : amount);
+      const paidAmount = order.paidAmount ?? 0;
       const dueAmount = order.dueAmount ?? (amount - paidAmount);
 
       return {

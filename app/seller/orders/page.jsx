@@ -1,4 +1,4 @@
-"use client";
+'use client';
 import React, { useEffect, useState } from "react";
 import { assets } from "@/assets/assets";
 import Image from "next/image";
@@ -226,16 +226,18 @@ const Orders = () => {
                   <div className="text-sm text-center flex flex-col justify-center font-medium">
                     <p>
                       Total: {currency}
-                      {order.amount || 0}
+                      {order.amount?.toFixed(2)}
                     </p>
                     <p className="text-green-600">
                       Paid: {currency}
-                      {order.paidAmount || 0}
+                      {order.paidAmount?.toFixed(2)}
                     </p>
-                    <p className="text-red-600">
-                      Due: {currency}
-                      {order.dueAmount || 0}
-                    </p>
+                    {order.dueAmount > 0 && (
+                      <p className="text-red-600">
+                        Due: {currency}
+                        {order.dueAmount?.toFixed(2)}
+                      </p>
+                    )}
                   </div>
 
                   {/* Payment Info */}
@@ -277,7 +279,7 @@ const Orders = () => {
                             onClick={() => handleSteadfastShipment(order)}
                             className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition w-full"
                           >
-                            Send COD ৳{order.dueAmount || 0}
+                            Send COD ৳{order.dueAmount?.toFixed(2)}
                           </button>
                         )}
                       </>

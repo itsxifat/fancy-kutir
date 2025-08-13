@@ -29,7 +29,7 @@ export async function POST(request) {
     for (const item of items) {
       const product = await Product.findById(item.product);
       if (!product) throw new Error(`Product not found: ${item.product}`);
-      amount += product.price * item.quantity;
+      amount += product.offerPrice * item.quantity;
     }
 
     // Map items correctly to match Order schema
