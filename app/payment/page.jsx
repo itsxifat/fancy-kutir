@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import React, { useEffect, useState } from "react";
 import { useAppContext } from "@/context/AppContext";
@@ -15,18 +15,21 @@ const Payment = () => {
   const [totalAmount, setTotalAmount] = useState(null);
   const [paidNow, setPaidNow] = useState(0);
   const [dueAmount, setDueAmount] = useState(0);
+  const [discount, setDiscount] = useState(0);
+
   const { getToken, setCartItems } = useAppContext();
   const router = useRouter();
 
   const bkashNumber = "01963949880";
 
   const copyBkashNumber = () => {
-    navigator.clipboard.writeText(bkashNumber)
+    navigator.clipboard
+      .writeText(bkashNumber)
       .then(() => toast.success("Bkash number copied!"))
       .catch(() => toast.error("Failed to copy number"));
   };
 
-  const calculateTotal = async (items) => {
+  const calculateTotal = async (items, referralCode) => {
     try {
       const fetchedProducts = await Promise.all(
         items.map(async (item) => {
@@ -50,7 +53,16 @@ const Payment = () => {
       setProducts(validProducts);
 
       const total = validProducts.reduce((sum, p) => sum + p.subtotal, 0);
-      setTotalAmount(total);
+
+      // Apply 10% discount if referralCode exists
+      if (referralCode) {
+        const discountValue = total * 0.1;
+        setDiscount(discountValue);
+        setTotalAmount(total);
+      } else {
+        setDiscount(0);
+        setTotalAmount(total);
+      }
     } catch (err) {
       console.error(err);
       toast.error("Error calculating total amount.");
@@ -72,7 +84,7 @@ const Payment = () => {
     setDueAmount(parsedOrder?.dueAmount || 0);
 
     if (parsedOrder.items?.length) {
-      calculateTotal(parsedOrder.items);
+      calculateTotal(parsedOrder.items, parsedOrder.referralCode);
     }
   }, [router]);
 
@@ -96,7 +108,7 @@ const Payment = () => {
     try {
       const token = await getToken();
 
-      const fixedItems = tempOrder.items.map(item => ({
+      const fixedItems = tempOrder.items.map((item) => ({
         product: item.productId || item.product,
         quantity: item.quantity,
       }));
@@ -109,7 +121,7 @@ const Payment = () => {
           address: tempOrder.address,
           items: fixedItems,
           paidAmount: paidNow,
-          dueAmount: dueAmount,
+          dueAmount: dueAmount, // unchanged
           paymentInfo: {
             number,
             transactionId,
@@ -152,13 +164,21 @@ const Payment = () => {
       {/* Payment Method Tabs */}
       <div className="flex gap-3 mb-5">
         <button
-          className={`px-4 py-2 rounded border ${paymentMethod === "bkash" ? "bg-orange-600 text-white" : "bg-white border-gray-300 text-gray-700"}`}
+          className={`px-4 py-2 rounded border ${
+            paymentMethod === "bkash"
+              ? "bg-orange-600 text-white"
+              : "bg-white border-gray-300 text-gray-700"
+          }`}
           onClick={() => setPaymentMethod("bkash")}
         >
           Manual Bkash
         </button>
         <button
-          className={`px-4 py-2 rounded border ${paymentMethod === "online" ? "bg-blue-600 text-white" : "bg-white border-gray-300 text-gray-700"}`}
+          className={`px-4 py-2 rounded border ${
+            paymentMethod === "online"
+              ? "bg-blue-600 text-white"
+              : "bg-white border-gray-300 text-gray-700"
+          }`}
           onClick={() => setPaymentMethod("online")}
         >
           Online Payment
@@ -168,17 +188,34 @@ const Payment = () => {
       {/* Order Summary */}
       {products.length > 0 && (
         <div className="w-full max-w-2xl text-left bg-gray-50 p-4 rounded shadow mb-4">
-          <h2 className="text-lg font-semibold mb-3 text-center">Order Summary</h2>
+          <h2 className="text-lg font-semibold mb-3 text-center">
+            Order Summary
+          </h2>
           {products.map((p, index) => (
-            <div key={index} className="flex justify-between py-1 border-b border-gray-200">
-              <span>{p.quantity} × {p.name}</span>
+            <div
+              key={index}
+              className="flex justify-between py-1 border-b border-gray-200"
+            >
+              <span>
+                {p.quantity} × {p.name}
+              </span>
               <span>৳{p.subtotal}</span>
             </div>
           ))}
+
+         
+
           <div className="flex justify-between font-semibold text-base mt-3">
             <span>Total:</span>
             <span>৳{totalAmount}</span>
           </div>
+           {/* Discount line if referral applied */}
+          {discount > 0 && (
+            <div className="flex justify-between text-green-600 font-medium mt-2">
+              <span>Referral Discount (10%):</span>
+              <span>-৳{discount}</span>
+            </div>
+          )}
           <div className="flex justify-between text-green-700 font-medium">
             <span>Pay Now:</span>
             <span>৳{paidNow}</span>
