@@ -10,24 +10,54 @@ import { SearchProvider } from "@/context/SearchContext";
 const outfit = Outfit({ subsets: ["latin"], weight: ["300", "400", "500"] });
 
 export const metadata = {
-  title: "Fancy Kutir - Handcrafted Women’s Fashion",
+  metadataBase: new URL("https://fancykutir.com"),
+  title: "Fancy Kutir - Handcrafted Women’s Fashion Bangladesh",
   description:
-    "Discover Fancy Kutir – a women’s fashion brand crafting timeless, handcrafted wear for the modern woman. Elevate your style with artisanal elegance and slow fashion made with love.",
+    "Discover Fancy Kutir – a women’s slow-fashion brand crafting premium handcrafted 3 piece, kurti & women's wear. Made by rural women in Bangladesh.",
   keywords:
-    "Fancy Kutir, Fancy, Kutir, 3 pice, three pice, 3 pis, thre pis, meyeder jama, orna, jama, kapor, handmade 3 pis, design three pice, women’s fashion, handcrafted wear",
+    "Fancy Kutir, handcrafted women's fashion, handmade three piece, Bangladeshi fashion brand, slow fashion Bangladesh, kurti BD, women's wear Bangladesh",
   author: {
     name: "Sifat Hosen",
     url: "https://facebook.com/itsxifat0",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  alternates: {
+    canonical: "https://fancykutir.shop",
+  },
+  openGraph: {
+    type: "website",
+    siteName: "Fancy Kutir",
+    url: "https://fancykutir.shop",
+    title: "Fancy Kutir - Handcrafted Women’s Fashion",
+    description:
+      "Premium handcrafted women's wear – designed and made by rural women in Bangladesh. Elevate your style with slow fashion.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Fancy Kutir - Handcrafted Women’s Fashion",
+    description:
+      "Premium handcrafted women's wear brand from Bangladesh. Slow fashion. Made by rural women.",
   },
 };
 
 export default function RootLayout({ children }) {
   return (
     <ClerkProvider>
-      <html lang="en">
+      <html lang="en-BD">
         <head>
           <meta name="viewport" content="width=device-width, initial-scale=1" />
           <link rel="icon" href="/favicon.ico" />
+          {/* font performance */}
+          <link
+            rel="preload"
+            as="font"
+            href="/fonts/outfit.woff2"
+            type="font/woff2"
+            crossOrigin="anonymous"
+          />
           {/* Facebook Pixel */}
           <Script
             id="facebook-pixel"
@@ -48,8 +78,8 @@ export default function RootLayout({ children }) {
             }}
           />
         </head>
+
         <body className={`${outfit.className} antialiased text-gray-700`} suppressHydrationWarning>
-          
           <Toaster />
           <AppContextProvider>
             <SearchProvider>
@@ -57,6 +87,7 @@ export default function RootLayout({ children }) {
               {children}
             </SearchProvider>
           </AppContextProvider>
+
           <noscript>
             <img
               height="1"
